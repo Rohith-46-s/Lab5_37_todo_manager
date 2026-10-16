@@ -1,0 +1,17 @@
+1. Which issues were the easiest to fix, and which were the hardest? Why?
+
+The easiest issues were the style violations: adding module and function docstrings (Pylint C0114/C0116), converting %-formatting to f-strings (C0209), using enumerate instead of range(len()) (C0200), removing unused imports (F401/W0611), and specifying encoding="utf-8" on open() calls (W1514). These are mechanical, local edits with no effect on program behavior.
+
+The hardest issues were the security and correctness findings. Replacing eval() with ast.literal_eval() (Bandit B307 / Pylint W0123) required confirming that the input was only ever a Python literal, so the safer parser would not break valid inputs. Removing subprocess with shell=True (Bandit B602/B607) meant eliminating functionality and confirming nothing else depended on it. Choosing the right specific exception types for the bare except: blocks (Pylint W0702 / Flake8 E722 / Bandit B110) also required care: too narrow and real errors escape; too broad and the original problem returns.
+
+2. Did the static analysis tools report any false positives? If so, describe one example.
+
+No clear false positives appeared across the three reports. Pylint's W0611 unused-import for os initially looked like one because os.getenv is used later for the API key, but in the original file os was genuinely unused. Bandit's B404 on the subprocess import flagged the import itself even though subprocess was used in a controlled way; this is conservative by design rather than a true error, since the tool cannot determine intent. Overall, every flagged item represented a real quality, style, or security concern worth fixing.
+
+3. How would you integrate static analysis tools into your actual software development workflow?
+
+I would run all three tools locally on every change: as a pre-commit hook (via pre-commit or git hooks) so failing code is never committed, in the IDE/linter for real-time feedback while editing, and in CI/CD pipelines on every pull request with the build failing on new issues. Tools would be pinned to exact versions in requirements-dev.yaml so results are reproducible, with per-tool config files (.pylintrc, setup.cfg/.flake8, bandit.yaml) to enforce project rules (e.g., max line length, bandit severity levels). Bandit findings would gate merges for security, while Pylint and Flake8 would enforce maintainability and PEP 8. The reports (pylint_report.txt, bandit_report.txt, flake8_report.txt) would be archived as build artifacts for audit.
+
+4. What tangible improvements did you observe in the code quality, readability, or potential robustness after applying the fixes?
+
+Readability improved through docstrings on every function, f-strings, and enumerate-based loops, making intent clear at a glance. Robustness improved substantially: bare except: blocks now catch only expected exceptions (ValueError, OSError, SyntaxError) instead of masking KeyboardInterrupt/SystemExit; open() uses explicit UTF-8 encoding so behavior is consistent across platforms; mutable default arguments no longer share state across calls. Security improved by replacing eval() with ast.literal_eval(), removing subprocess/shell=True, and moving the API key out of source into an environment variable. Pylint rose from 5.47/10 to 10.00/10, Bandit went from 6 issues (including 1 High) to zero, and Flake8 went from 6 violations to zero.
